@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>門市與倉庫合併及供應商自動分包系統</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SheetJS (XLSX) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- FileSaver.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#16a34a',
+              600: '#15803d',
+              700: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght=300;400;500;700&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    .drop-zone--over {
+      border-color: #16a34a !important;
+      background-color: #f0fdf4 !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-brand-900 to-brand-700 text-white py-6 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
+          <i class="fa-solid fa-boxes-packing text-3xl text-brand-100"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-wide">月退各店庫存自動分包系統</h1>
+          <p class="text-brand-100 text-sm mt-1">Excel 雙分頁智慧合併對齊 • 依 D 欄 供應商一鍵拆分獨立對帳單</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3 text-xs bg-black/20 px-3 py-1.5 rounded-lg border border-white/10 self-start md:self-auto">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>在地安全模式：資料 100% 於本機瀏覽器內安全處理</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- 操作步驟指示 -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div id="step1-indicator" class="bg-white border-l-4 border-brand-500 p-4 rounded-r-xl shadow-sm flex items-start space-x-3 transition-all duration-300">
+        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-100 text-brand-700 font-bold text-sm">1</span>
+        <div>
+          <h3 class="font-medium text-slate-900">匯入 Excel 檔案</h3>
+          <p class="text-xs text-slate-500 mt-0.5">直接上傳含「門市與倉庫」分頁的原始活頁簿</p>
+        </div>
+      </div>
+      <div id="step2-indicator" class="bg-white border-l-4 border-slate-200 p-4 rounded-r-xl shadow-sm flex items-start space-x-3 transition-all duration-300 opacity-60">
+        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-500 font-bold text-sm">2</span>
+        <div>
+          <h3 class="font-medium text-slate-700">自動分頁合併與預覽</h3>
+          <p class="text-xs text-slate-500 mt-0.5">智慧對齊，確認 D 欄供應商名稱</p>
+        </div>
+      </div>
+      <div id="step3-indicator" class="bg-white border-l-4 border-slate-200 p-4 rounded-r-xl shadow-sm flex items-start space-x-3 transition-all duration-300 opacity-60">
+        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-500 font-bold text-sm">3</span>
+        <div>
+          <h3 class="font-medium text-slate-700">一鍵拆分與打包匯出</h3>
+          <p class="text-xs text-slate-500 mt-0.5">下載合併總表或一次打包下載各廠商 Excel 檔</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第一步：上傳檔案區 -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up text-brand-500"></i>
+          步驟一：上傳原始 Excel 活頁簿
+        </h2>
+        <button id="btn-load-demo" class="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1 bg-brand-50 hover:bg-brand-100/80 px-2.5 py-1.5 rounded-lg transition-colors">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> 載入範例數據模擬測試
+        </button>
+      </div>
+
+      <!-- 切換上傳模式 -->
+      <div class="flex border-b border-slate-200 mb-6 text-sm">
+        <button id="tab-single" class="px-5 py-2.5 font-medium border-b-2 border-brand-500 text-brand-600 bg-brand-50/50 rounded-t-lg flex items-center gap-2 transition-all">
+          <i class="fa-solid fa-file-excel"></i> 上傳單一整份 Excel 活頁簿 (推薦)
+        </button>
+        <button id="tab-multi" class="px-5 py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-2 transition-all">
+          <i class="fa-solid fa-files"></i> 分別上傳門市/倉庫獨立檔案
+        </button>
+      </div>
+
+      <!-- 模式A：上傳單一整份 Excel 檔案 -->
+      <div id="mode-single-container" class="space-y-6">
+        <div id="dropzone-single" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-10 text-center cursor-pointer transition-all bg-slate-50 hover:bg-slate-50/20 flex flex-col items-center justify-center min-h-[220px]">
+          <input type="file" id="file-single" class="hidden" accept=".xlsx, .xls">
+          <div class="icon-container bg-brand-100 text-brand-600 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+            <i class="fa-solid fa-file-excel text-2xl"></i>
+          </div>
+          <p class="text-base font-bold text-slate-800" id="single-file-name">拖曳您的月退 Excel 表至此，或點擊此處上傳</p>
+          <p class="text-xs text-slate-400 mt-2">支援直接上傳原始包含「門市」與「其他倉庫」分頁的 .xlsx 檔案</p>
+          <div id="single-info" class="hidden mt-4 text-xs bg-brand-50 text-brand-800 py-1.5 px-4 rounded-lg font-medium border border-brand-100"></div>
+        </div>
+
+        <!-- 智慧分頁對應區 -->
+        <div id="sheet-mapping-panel" class="hidden bg-slate-50 rounded-xl p-5 border border-slate-200 animate-fadeIn">
+          <h4 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-1.5">
+            <i class="fa-solid fa-gears text-brand-600"></i> 自動分頁對應設定
+          </h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label class="block font-medium text-slate-700 mb-1.5 flex justify-between items-center">
+                <span>🏢 門市退貨數據工作表</span>
+                <span class="text-[10px] text-blue-600 font-semibold" id="mapping-store-status">自動選取成功</span>
+              </label>
+              <select id="select-store-sheet" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 focus:ring-1 focus:ring-brand-500 text-slate-800 font-medium"></select>
+            </div>
+            <div>
+              <label class="block font-medium text-slate-700 mb-1.5 flex justify-between items-center">
+                <span>📦 倉庫退貨數據工作表</span>
+                <span class="text-[10px] text-amber-600 font-semibold" id="mapping-warehouse-status">自動選取成功</span>
+              </label>
+              <select id="select-warehouse-sheet" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 focus:ring-1 focus:ring-brand-500 text-slate-800 font-medium"></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模式B：分別上傳門市/倉庫獨立檔案 -->
+      <div id="mode-multi-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
+        <!-- 門市上傳區 -->
+        <div class="flex flex-col">
+          <label class="block text-sm font-medium text-slate-700 mb-2 flex items-center justify-between">
+            <span>門市退貨數量表 (.csv 或 .xlsx)</span>
+            <span class="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">對應欄位：目前庫存</span>
+          </label>
+          <div id="dropzone-store" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-8 text-center cursor-pointer transition-all bg-slate-50 hover:bg-slate-50/50 flex flex-col items-center justify-center min-h-[180px]">
+            <input type="file" id="file-store" class="hidden" accept=".csv, .xlsx, .xls">
+            <div class="icon-container bg-blue-50 text-blue-500 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+              <i class="fa-solid fa-store text-xl"></i>
+            </div>
+            <p class="text-sm font-medium text-slate-700" id="store-file-name">拖曳檔案至此或點選上傳</p>
+            <p class="text-xs text-slate-400 mt-1">支援個別 .csv 或單一 Excel 檔</p>
+            <div id="store-info" class="hidden mt-3 text-xs bg-blue-50 text-blue-700 py-1 px-3 rounded-lg font-medium"></div>
+          </div>
+        </div>
+
+        <!-- 其他倉庫上傳區 -->
+        <div class="flex flex-col">
+          <label class="block text-sm font-medium text-slate-700 mb-2 flex items-center justify-between">
+            <span>其他倉庫退貨數量表 (.csv 或 .xlsx)</span>
+            <span class="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded">對應欄位：目前庫存數</span>
+          </label>
+          <div id="dropzone-warehouse" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-8 text-center cursor-pointer transition-all bg-slate-50 hover:bg-slate-50/50 flex flex-col items-center justify-center min-h-[180px]">
+            <input type="file" id="file-warehouse" class="hidden" accept=".csv, .xlsx, .xls">
+            <div class="icon-container bg-amber-50 text-amber-500 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+              <i class="fa-solid fa-warehouse text-xl"></i>
+            </div>
+            <p class="text-sm font-medium text-slate-700" id="warehouse-file-name">拖曳檔案至此或點選上傳</p>
+            <p class="text-xs text-slate-400 mt-1">支援個別 .csv 或單一 Excel 檔</p>
+            <div id="warehouse-info" class="hidden mt-3 text-xs bg-amber-50 text-amber-700 py-1 px-3 rounded-lg font-medium"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 執行合併分析按鈕 -->
+      <div class="mt-6 flex justify-end">
+        <button id="btn-merge" class="bg-slate-400 text-white px-8 py-3 rounded-xl font-medium shadow-sm flex items-center gap-2 cursor-not-allowed transition-all" disabled>
+          <i class="fa-solid fa-shuffle"></i>
+          合併並進行智慧分析
+        </button>
+      </div>
+    </section>
+
+    <!-- 第二步：對齊與預覽區 -->
+    <section id="section-preview" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8 hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-100 mb-6 gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-eye text-brand-500"></i>
+            步驟二：資料合併與對齊結果
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">系統已自動合併，並將供應商統一對齊至合併總表之 <strong>D 欄（供應商簡稱）</strong></p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+            <i class="fa-solid fa-store"></i> 門市：<strong id="stat-store-count">0</strong> 筆
+          </span>
+          <span class="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+            <i class="fa-solid fa-warehouse"></i> 倉庫：<strong id="stat-warehouse-count">0</strong> 筆
+          </span>
+          <span class="text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1">
+            <i class="fa-solid fa-equals"></i> 總計：<strong id="stat-total-count">0</strong> 筆
+          </span>
+        </div>
+      </div>
+
+      <!-- 說明提示 -->
+      <div class="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100 flex items-start space-x-3 text-sm text-slate-600">
+        <i class="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+        <div>
+          <p class="font-medium text-slate-900 mb-1">欄位智慧對齊與命名規則：</p>
+          <ul class="list-disc pl-4 space-y-1 text-xs text-slate-500">
+            <li><strong>國際條碼 (原料件編號)：</strong>自動對位門市表的 `料件編號`、`商品編號` 或 `條碼` 欄位，在匯出的廠商報表中統一命名為 <strong>國際條碼</strong>。</li>
+            <li><strong>供應商簡稱(D欄)：</strong>將「門市分頁【供應商簡稱】」與「倉庫分頁【供應商名稱】」統一寫入分包 Excel 的 <strong>D 欄</strong>。</li>
+            <li><strong>退貨地點：</strong>「門市分頁【門市】」與「倉庫分頁【倉庫名稱】」統一對位，以便廠商核對來源。</li>
+            <li><strong>退貨數量：</strong>門市欄位【目前庫存】與倉庫欄位【目前庫存數】自動對位，於報表末端自動加上【合計】。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 預覽表格 -->
+      <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-1">
+          <i class="fa-solid fa-table-list"></i>
+          合併總表預覽 (僅顯示前 10 筆資料)
+        </h3>
+        <div class="relative w-full md:w-72">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <input type="text" id="search-preview" class="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500" placeholder="搜尋條碼、品名、廠商或品牌...">
+        </div>
+      </div>
+
+      <div class="overflow-x-auto border border-slate-100 rounded-xl mb-6">
+        <table class="min-w-full divide-y divide-slate-100 text-xs">
+          <thead class="bg-slate-50 text-slate-500">
+            <tr>
+              <th scope="col" class="px-4 py-3 text-left font-medium">來源</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium bg-emerald-50/50 text-slate-800 font-semibold">國際條碼</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">料件名稱</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">供應商編號</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium bg-emerald-50 text-emerald-800 font-bold">供應商簡稱 (D欄)</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">主分類</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">品牌</th>
+              <th scope="col" class="px-4 py-3 text-left font-medium">退貨地點</th>
+              <th scope="col" class="px-4 py-3 text-right font-medium">退貨數量</th>
+            </tr>
+          </thead>
+          <tbody id="preview-table-body" class="divide-y divide-slate-100 bg-white">
+            <!-- 動態插入資料 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 第三步：廠商工作表拆分與匯出區 -->
+    <section id="section-export" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8 hidden">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between pb-4 border-b border-slate-100 mb-6 gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-boxes-packing text-brand-500"></i>
+            步驟三：依 D欄 供應商一鍵打包與匯出
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">系統已依 D 欄偵測到 <strong id="stat-supplier-count" class="text-brand-600">0</strong> 家供應商，已備妥獨立 Excel 報表</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="btn-export-all-zip" class="bg-gradient-to-r from-emerald-600 to-brand-600 hover:from-emerald-700 hover:to-brand-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2 text-sm">
+            <i class="fa-solid fa-file-zipper"></i>
+            一鍵打包所有廠商 Excel (ZIP)
+          </button>
+          <button id="btn-export-merged" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 text-sm">
+            <i class="fa-solid fa-file-excel text-emerald-600"></i>
+            下載合併總表 Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- 進度條 -->
+      <div id="progress-container" class="hidden mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+        <div class="flex justify-between items-center mb-1.5 text-xs text-emerald-800 font-medium">
+          <span id="progress-text">正在生成廠商 Excel 報表... (0/0)</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div class="w-full bg-slate-200 rounded-full h-2">
+          <div id="progress-bar" class="bg-brand-500 h-2 rounded-full transition-all duration-150" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- 搜尋與篩選廠商 -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div class="relative w-full md:w-80">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input type="text" id="search-supplier" class="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="搜尋供應商名稱或編號...">
+        </div>
+        <div class="flex items-center space-x-2 text-xs text-slate-500">
+          <span>排序方式：</span>
+          <select id="sort-supplier" class="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500">
+            <option value="name">廠商名稱</option>
+            <option value="qty-desc" selected>退貨數量多 → 少</option>
+            <option value="qty-asc">退貨數量少 → 多</option>
+            <option value="rows-desc">品項種類多 → 少</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 供應商卡片網格 -->
+      <div id="supplier-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- 動態插入廠商卡片 -->
+      </div>
+    </section>
+
+    <!-- 說明與指南 -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+      <h2 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-4">
+        <i class="fa-solid fa-circle-question text-slate-400"></i>
+        分包匯出與使用指南
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-slate-600">
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <h4 class="font-bold text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-file-signature text-brand-500"></i>
+            Excel 檔名格式
+          </h4>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            導出的檔案名稱統一為：<code class="bg-slate-200 text-red-600 px-1 py-0.5 rounded font-bold text-[10px]">【月退名單】[廠商名稱]_2026年5月月退庫存明細表.xlsx</code>，結構清晰，方便追蹤與存檔。
+          </p>
+        </div>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <h4 class="font-bold text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-barcode text-brand-500"></i>
+            條碼標準對帳
+          </h4>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            系統會自動對位門市表的 `料件編號` 或 `商品條碼`，並統一在 Excel 表中重命名為 <strong>國際條碼</strong>，方便廠商直接刷碼或匯入對帳系統。
+          </p>
+        </div>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <h4 class="font-bold text-slate-900 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-share-nodes text-brand-500"></i>
+            解壓直接分發
+          </h4>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            點擊「一鍵打包」後，下載 ZIP 檔案並解壓縮，即可獲得所有廠商獨立的 Excel 對帳單，您可以直接透過通訊軟體（Line、微信）或電子郵件附件直接傳給廠商！
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 浮動訊息通知 Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white py-3 px-6 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
+    <i id="toast-icon" class="fa-solid fa-circle-info text-emerald-400"></i>
+    <span id="toast-message" class="text-sm font-medium">訊息通知</span>
+  </div>
+
+  <footer class="bg-slate-100 border-t border-slate-200 py-6 mt-12 text-center text-xs text-slate-400">
+    <div class="max-w-7xl mx-auto px-4">
+      <p>© 2026 月退各店庫存自動化對齊與分包系統 • 保留所有本機端操作安全權利</p>
+    </div>
+  </footer>
+
+  <script>
+    // 全域變數
+    let currentWorkbook = null;
+    let storeData = [];
+    let warehouseData = [];
+    let mergedData = [];
+    let groupedSuppliers = {}; // 依供應商分類的資料
+    let currentUploadMode = 'single'; // 'single' 或 'multi'
+
+    // 欄位對齊映射表
+    const FIELD_MAP = {
+      國際條碼: ['國際條碼', '條碼', '商品條碼', '料件編號', '商品編號', '料號', '商品代碼'],
+      料件名稱: ['料件名稱', '商品名稱', '品名'],
+      供應商編號: ['供應商編號', '廠商編號', '供應商代號'],
+      供應商簡稱: ['供應商簡稱', '供應商名稱', '廠商名稱', '廠商簡稱'],
+      主分類: ['主分類', '分類', '商品分類'],
+      品牌: ['品牌名稱', '品牌', '品牌分類'],
+      目前庫存: ['目前庫存', '目前庫存數', '庫存數', '庫存數量', '退貨數量', '數量']
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // 模式切換
+      const tabSingle = document.getElementById('tab-single');
+      const tabMulti = document.getElementById('tab-multi');
+      const modeSingle = document.getElementById('mode-single-container');
+      const modeMulti = document.getElementById('mode-multi-container');
+
+      tabSingle.addEventListener('click', () => {
+        currentUploadMode = 'single';
+        tabSingle.className = "px-5 py-2.5 font-medium border-b-2 border-brand-500 text-brand-600 bg-brand-50/50 rounded-t-lg flex items-center gap-2 transition-all";
+        tabMulti.className = "px-5 py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-2 transition-all";
+        modeSingle.classList.remove('hidden');
+        modeMulti.classList.add('hidden');
+        checkReadyToMerge();
+      });
+
+      tabMulti.addEventListener('click', () => {
+        currentUploadMode = 'multi';
+        tabMulti.className = "px-5 py-2.5 font-medium border-b-2 border-brand-500 text-brand-600 bg-brand-50/50 rounded-t-lg flex items-center gap-2 transition-all";
+        tabSingle.className = "px-5 py-2.5 font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center gap-2 transition-all";
+        modeMulti.classList.remove('hidden');
+        modeSingle.classList.add('hidden');
+        checkReadyToMerge();
+      });
+
+      // 設定拖放區
+      setupDropzone('dropzone-single', 'file-single', 'single-file-name', 'single-info', handleSingleExcelUpload);
+      setupDropzone('dropzone-store', 'file-store', 'store-file-name', 'store-info', handleStoreFile);
+      setupDropzone('dropzone-warehouse', 'file-warehouse', 'warehouse-file-name', 'warehouse-info', handleWarehouseFile);
+
+      // 下拉選單變更時自動重新載入對應分頁資料
+      document.getElementById('select-store-sheet').addEventListener('change', parseSheetSelection);
+      document.getElementById('select-warehouse-sheet').addEventListener('change', parseSheetSelection);
+
+      document.getElementById('btn-merge').addEventListener('click', runMergeAndAnalysis);
+      document.getElementById('btn-export-all-zip').addEventListener('click', exportAllSuppliersToZip);
+      document.getElementById('btn-export-merged').addEventListener('click', exportMergedExcel);
+      document.getElementById('btn-load-demo').addEventListener('click', loadDemoData);
+
+      document.getElementById('search-preview').addEventListener('input', updatePreviewTable);
+      document.getElementById('search-supplier').addEventListener('input', renderSupplierGrid);
+      document.getElementById('sort-supplier').addEventListener('change', renderSupplierGrid);
+    });
+
+    // 彈出 Toast 訊息
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      const toastIcon = document.getElementById('toast-icon');
+
+      toastMsg.innerText = message;
+      
+      if (type === 'success') {
+        toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-lg';
+      } else if (type === 'error') {
+        toastIcon.className = 'fa-solid fa-circle-xmark text-rose-500 text-lg';
+      } else {
+        toastIcon.className = 'fa-solid fa-circle-info text-amber-500 text-lg';
+      }
+
+      toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+      
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+      }, 4000);
+    }
+
+    // 設定拖放區域
+    function setupDropzone(zoneId, fileInputId, fileNameId, infoId, callback) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(fileInputId);
+
+      zone.addEventListener('click', () => input.click());
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('drop-zone--over');
+      });
+
+      ['dragleave', 'dragend'].forEach(type => {
+        zone.addEventListener(type, () => {
+          zone.classList.remove('drop-zone--over');
+        });
+      });
+
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drop-zone--over');
+        
+        if (e.dataTransfer.files.length) {
+          input.files = e.dataTransfer.files;
+          processFileInput(input.files[0], fileNameId, infoId, callback);
+        }
+      });
+
+      input.addEventListener('change', () => {
+        if (input.files.length) {
+          processFileInput(input.files[0], fileNameId, infoId, callback);
+        }
+      });
+    }
+
+    function processFileInput(file, fileNameId, infoId, callback) {
+      document.getElementById(fileNameId).innerHTML = `<span class="font-bold text-slate-800">${file.name}</span>`;
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        callback(workbook, file.name, infoId);
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    // A. 處理單一活頁簿上傳邏輯
+    function handleSingleExcelUpload(workbook, fileName, infoId) {
+      currentWorkbook = workbook;
+      const sheetNames = workbook.SheetNames;
+
+      // 智慧配對分頁
+      let matchedStoreSheet = "";
+      let matchedWarehouseSheet = "";
+
+      sheetNames.forEach(name => {
+        const nameClean = name.trim();
+        if (nameClean === "門市" || (nameClean.includes("門市") && !nameClean.includes("倉庫"))) {
+          matchedStoreSheet = name;
+        } else if (nameClean === "其他倉庫" || nameClean === "倉庫" || nameClean.includes("其他倉庫") || (nameClean.includes("倉庫") || nameClean.includes("倉") && nameClean !== "合併總表")) {
+          matchedWarehouseSheet = name;
+        }
+      });
+
+      // 備份機制
+      if (!matchedStoreSheet) {
+        matchedStoreSheet = sheetNames.find(n => n.includes("門")) || "";
+      }
+      if (!matchedWarehouseSheet) {
+        matchedWarehouseSheet = sheetNames.find(n => n.includes("倉")) || "";
+      }
+
+      if (sheetNames.length === 1) {
+        matchedStoreSheet = sheetNames[0];
+      }
+
+      // 產生下拉選單
+      const storeSelect = document.getElementById('select-store-sheet');
+      const warehouseSelect = document.getElementById('select-warehouse-sheet');
+      
+      storeSelect.innerHTML = '';
+      warehouseSelect.innerHTML = '';
+
+      sheetNames.forEach(name => {
+        const optStore = new Option(name, name);
+        const optWarehouse = new Option(name, name);
+        storeSelect.add(optStore);
+        warehouseSelect.add(optWarehouse);
+      });
+
+      if (matchedStoreSheet) storeSelect.value = matchedStoreSheet;
+      if (matchedWarehouseSheet) warehouseSelect.value = matchedWarehouseSheet;
+
+      document.getElementById('sheet-mapping-panel').classList.remove('hidden');
+
+      // 更新對齊指示
+      document.getElementById('mapping-store-status').innerText = matchedStoreSheet ? `✅ 已自動對齊「${matchedStoreSheet}」` : `⚠️ 請手動選擇`;
+      document.getElementById('mapping-store-status').className = matchedStoreSheet ? 'text-[10px] text-emerald-600 font-semibold' : 'text-[10px] text-rose-500 font-semibold';
+      
+      document.getElementById('mapping-warehouse-status').innerText = matchedWarehouseSheet ? `✅ 已自動對齊「${matchedWarehouseSheet}」` : `⚠️ 請手動選擇`;
+      document.getElementById('mapping-warehouse-status').className = matchedWarehouseSheet ? 'text-[10px] text-emerald-600 font-semibold' : 'text-[10px] text-rose-500 font-semibold';
+
+      document.getElementById('single-info').classList.remove('hidden');
+      document.getElementById('single-info').innerText = `成功載入活頁簿！內含 ${sheetNames.length} 個分頁。`;
+
+      parseSheetSelection();
+    }
+
+    // 剖析分頁資料
+    function parseSheetSelection() {
+      if (!currentWorkbook) return;
+
+      const storeSheetName = document.getElementById('select-store-sheet').value;
+      const warehouseSheetName = document.getElementById('select-warehouse-sheet').value;
+
+      const storeWS = currentWorkbook.Sheets[storeSheetName];
+      const warehouseWS = currentWorkbook.Sheets[warehouseSheetName];
+
+      if (storeWS) {
+        storeData = XLSX.utils.sheet_to_json(storeWS, { defval: '' });
+      } else {
+        storeData = [];
+      }
+
+      if (warehouseWS && storeSheetName !== warehouseSheetName) {
+        warehouseData = XLSX.utils.sheet_to_json(warehouseWS, { defval: '' });
+      } else {
+        warehouseData = [];
+      }
+
+      checkReadyToMerge();
+    }
+
+    // B. 分別上傳處理
+    function handleStoreFile(workbook, fileName, infoId) {
+      const sheetName = workbook.SheetNames[0];
+      storeData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+      
+      const infoElement = document.getElementById('store-info');
+      infoElement.classList.remove('hidden');
+      infoElement.innerText = `成功讀取 ${storeData.length.toLocaleString()} 筆門市資料`;
+      checkReadyToMerge();
+    }
+
+    function handleWarehouseFile(workbook, fileName, infoId) {
+      const sheetName = workbook.SheetNames[0];
+      warehouseData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+
+      const infoElement = document.getElementById('warehouse-info');
+      infoElement.classList.remove('hidden');
+      infoElement.innerText = `成功讀取 ${warehouseData.length.toLocaleString()} 筆倉庫資料`;
+      checkReadyToMerge();
+    }
+
+    function checkReadyToMerge() {
+      const btn = document.getElementById('btn-merge');
+      let isReady = false;
+
+      if (currentUploadMode === 'single') {
+        isReady = storeData.length > 0;
+      } else {
+        isReady = storeData.length > 0 && warehouseData.length > 0;
+      }
+
+      if (isReady) {
+        btn.classList.remove('bg-slate-400', 'cursor-not-allowed');
+        btn.classList.add('bg-brand-600', 'hover:bg-brand-700', 'cursor-pointer');
+        btn.disabled = false;
+        
+        document.getElementById('step1-indicator').classList.add('opacity-80');
+        document.getElementById('step2-indicator').classList.remove('opacity-60');
+        document.getElementById('step2-indicator').classList.add('border-brand-500');
+      } else {
+        btn.classList.add('bg-slate-400', 'cursor-not-allowed');
+        btn.classList.remove('bg-brand-600', 'hover:bg-brand-700', 'cursor-pointer');
+        btn.disabled = true;
+      }
+    }
+
+    function findColumnName(headers, targetFields) {
+      for (let target of targetFields) {
+        const match = headers.find(h => h.toString().trim().replace(/[\r\n\t]/g, '') === target);
+        if (match) return match;
+      }
+      for (let target of targetFields) {
+        const match = headers.find(h => h.toString().trim().includes(target));
+        if (match) return match;
+      }
+      return null;
+    }
+
+    // 執行合併與分析
+    function runMergeAndAnalysis() {
+      if (storeData.length === 0) {
+        showToast('請先完成檔案匯入！', 'error');
+        return;
+      }
+
+      mergedData = [];
+      groupedSuppliers = {};
+
+      // 1. 門市對齊
+      const storeHeaders = Object.keys(storeData[0] || {});
+      const st_barcode = findColumnName(storeHeaders, FIELD_MAP.國際條碼) || '國際條碼';
+      const st_itemName = findColumnName(storeHeaders, FIELD_MAP.料件名稱) || '料件名稱';
+      const st_supNo = findColumnName(storeHeaders, FIELD_MAP.供應商編號) || '供應商編號';
+      const st_supName = findColumnName(storeHeaders, FIELD_MAP.供應商簡稱) || '供應商簡稱';
+      const st_cat = findColumnName(storeHeaders, FIELD_MAP.主分類) || '主分類';
+      const st_brand = findColumnName(storeHeaders, FIELD_MAP.品牌) || '品牌名稱';
+      const st_stock = findColumnName(storeHeaders, FIELD_MAP.目前庫存) || '目前庫存';
+      const st_point = storeHeaders.find(h => h.trim() === '門市') || storeHeaders.find(h => h.trim().includes('店')) || '門市';
+
+      storeData.forEach(row => {
+        const qty = parseFloat(row[st_stock]) || 0;
+        if (qty === 0) return;
+        
+        const supNameClean = (row[st_supName] || '未分類廠商').toString().trim();
+        
+        mergedData.push({
+          "來源": "門市",
+          "國際條碼": (row[st_barcode] || '').toString().trim(),
+          "料件名稱": (row[st_itemName] || '').toString().trim(),
+          "供應商編號": (row[st_supNo] || '').toString().trim(),
+          "供應商簡稱": supNameClean,
+          "主分類": (row[st_cat] || '').toString().trim(),
+          "品牌": (row[st_brand] || '').toString().trim(),
+          "退貨點": (row[st_point] || '門市店點').toString().trim(),
+          "退貨數量": qty
+        });
+      });
+
+      // 2. 倉庫對齊
+      if (warehouseData.length > 0) {
+        const whHeaders = Object.keys(warehouseData[0] || {});
+        const wh_barcode = findColumnName(whHeaders, FIELD_MAP.國際條碼) || '國際條碼';
+        const wh_itemName = findColumnName(whHeaders, FIELD_MAP.料件名稱) || '料件名稱';
+        const wh_supNo = findColumnName(whHeaders, FIELD_MAP.供應商編號) || '供應商編號';
+        const wh_supName = findColumnName(whHeaders, FIELD_MAP.供應商簡稱) || '供應商名稱';
+        const wh_cat = findColumnName(whHeaders, FIELD_MAP.主分類) || '主分類';
+        const wh_brand = findColumnName(whHeaders, FIELD_MAP.品牌) || '品牌';
+        const wh_stock = findColumnName(whHeaders, FIELD_MAP.目前庫存) || '目前庫存數';
+        const wh_point = whHeaders.find(h => h.trim() === '倉庫名稱') || whHeaders.find(h => h.trim().includes('倉')) || '倉庫名稱';
+
+        warehouseData.forEach(row => {
+          const qty = parseFloat(row[wh_stock]) || 0;
+          if (qty === 0) return;
+          
+          const supNameClean = (row[wh_supName] || '未分類廠商').toString().trim();
+
+          mergedData.push({
+            "來源": "其他倉庫",
+            "國際條碼": (row[wh_barcode] || '').toString().trim(),
+            "料件名稱": (row[wh_itemName] || '').toString().trim(),
+            "供應商編號": (row[wh_supNo] || '').toString().trim(),
+            "供應商簡稱": supNameClean,
+            "主分類": (row[wh_cat] || '').toString().trim(),
+            "品牌": (row[wh_brand] || '').toString().trim(),
+            "退貨點": (row[wh_point] || '其他倉庫').toString().trim(),
+            "退貨數量": qty
+          });
+        });
+      }
+
+      // 3. 依 D 欄進行分組
+      mergedData.forEach(row => {
+        const supName = row["供應商簡稱"];
+        if (!groupedSuppliers[supName]) {
+          groupedSuppliers[supName] = [];
+        }
+        groupedSuppliers[supName].push(row);
+      });
+
+      // 更新統計
+      document.getElementById('stat-store-count').innerText = storeData.length.toLocaleString();
+      document.getElementById('stat-warehouse-count').innerText = warehouseData.length.toLocaleString();
+      document.getElementById('stat-total-count').innerText = mergedData.length.toLocaleString();
+      document.getElementById('stat-supplier-count').innerText = Object.keys(groupedSuppliers).length;
+
+      document.getElementById('section-preview').classList.remove('hidden');
+      document.getElementById('section-export').classList.remove('hidden');
+
+      document.getElementById('step2-indicator').classList.add('opacity-80');
+      document.getElementById('step3-indicator').classList.remove('opacity-60');
+      document.getElementById('step3-indicator').classList.add('border-brand-500');
+
+      updatePreviewTable();
+      renderSupplierGrid();
+
+      showToast(`合併對齊成功！已自動偵測 ${Object.keys(groupedSuppliers).length} 家廠商。`);
+    }
+
+    // 預覽前 10 筆資料
+    function updatePreviewTable() {
+      const searchTerm = document.getElementById('search-preview').value.toLowerCase().trim();
+      const tbody = document.getElementById('preview-table-body');
+      tbody.innerHTML = '';
+
+      let filtered = mergedData;
+      if (searchTerm) {
+        filtered = mergedData.filter(r => 
+          r.國際條碼.toLowerCase().includes(searchTerm) ||
+          r.料件名稱.toLowerCase().includes(searchTerm) ||
+          r.供應商簡稱.toLowerCase().includes(searchTerm) ||
+          r.品牌.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      const previewSlice = filtered.slice(0, 10);
+      
+      if (previewSlice.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400">未找到符合篩選條件的品項</td></tr>`;
+        return;
+      }
+
+      previewSlice.forEach(row => {
+        const sourceBadge = row.來源 === '門市' 
+          ? `<span class="bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded font-semibold text-[10px] flex items-center gap-1 w-fit"><i class="fa-solid fa-store"></i>門市</span>`
+          : `<span class="bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded font-semibold text-[10px] flex items-center gap-1 w-fit"><i class="fa-solid fa-warehouse"></i>倉庫</span>`;
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-4 py-3 whitespace-nowrap">${sourceBadge}</td>
+            <td class="px-4 py-3 font-mono text-slate-600 font-medium">${row.國際條碼}</td>
+            <td class="px-4 py-3 max-w-xs truncate text-slate-900 font-medium" title="${row.料件名稱}">${row.料件名稱}</td>
+            <td class="px-4 py-3 text-slate-500">${row.供應商編號}</td>
+            <td class="px-4 py-3 font-semibold text-slate-950 bg-emerald-50/40">${row.供應商簡稱}</td>
+            <td class="px-4 py-3 text-slate-500">${row.主分類}</td>
+            <td class="px-4 py-3 text-slate-500">${row.品牌}</td>
+            <td class="px-4 py-3 text-slate-700">${row.退貨點}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-950">${row.退貨數量.toLocaleString()}</td>
+          </tr>
+        `;
+      });
+
+      if (filtered.length > 10) {
+        tbody.innerHTML += `
+          <tr>
+            <td colspan="9" class="px-4 py-2.5 bg-slate-50 text-center text-xs text-slate-500 font-medium">
+              ... 以及額外 ${ (filtered.length - 10).toLocaleString() } 筆資料（合計已顯示 10/${filtered.length.toLocaleString()} 筆）
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    // 渲染卡片 (專注於 Excel 打包與單獨下載)
+    function renderSupplierGrid() {
+      const searchTerm = document.getElementById('search-supplier').value.toLowerCase().trim();
+      const sortBy = document.getElementById('sort-supplier').value;
+      const grid = document.getElementById('supplier-grid');
+      grid.innerHTML = '';
+
+      let list = [];
+
+      for (let name in groupedSuppliers) {
+        const rows = groupedSuppliers[name];
+        const supCode = rows[0]?.供應商編號 || '無編號';
+        const totalQty = rows.reduce((acc, r) => acc + r.退貨數量, 0);
+        const storeCount = rows.filter(r => r.來源 === '門市').reduce((acc, r) => acc + r.退貨數量, 0);
+        const whCount = rows.filter(r => r.來源 === '其他倉庫').reduce((acc, r) => acc + r.退貨數量, 0);
+        
+        if (searchTerm && !name.toLowerCase().includes(searchTerm) && !supCode.toLowerCase().includes(searchTerm)) {
+          continue;
+        }
+
+        list.push({
+          name: name,
+          code: supCode,
+          totalQty: totalQty,
+          storeCount: storeCount,
+          whCount: whCount,
+          rowCount: rows.length
+        });
+      }
+
+      if (sortBy === 'name') {
+        list.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+      } else if (sortBy === 'qty-desc') {
+        list.sort((a, b) => b.totalQty - a.totalQty);
+      } else if (sortBy === 'qty-asc') {
+        list.sort((a, b) => a.totalQty - b.totalQty);
+      } else if (sortBy === 'rows-desc') {
+        list.sort((a, b) => b.rowCount - a.rowCount);
+      }
+
+      if (list.length === 0) {
+        grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400">未找到符合篩選條件的供應商</div>`;
+        return;
+      }
+
+      list.forEach(item => {
+        grid.innerHTML += `
+          <div class="bg-white border border-slate-100 hover:border-brand-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group">
+            <div>
+              <div class="flex justify-between items-start mb-3">
+                <span class="text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded font-mono">${item.code}</span>
+                <span class="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded">
+                  共 ${item.rowCount} 個品項
+                </span>
+              </div>
+              
+              <h3 class="font-bold text-slate-900 group-hover:text-brand-600 transition-colors text-base truncate mb-4" title="${item.name}">
+                ${item.name}
+              </h3>
+              
+              <!-- 退貨細目 -->
+              <div class="bg-slate-50 rounded-xl p-4 space-y-2 mb-5 text-xs">
+                <div class="flex justify-between text-slate-500">
+                  <span>🏢 門市退貨點：</span>
+                  <span class="font-semibold text-blue-600 font-mono">${item.storeCount.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between text-slate-500">
+                  <span>📦 倉庫庫存數：</span>
+                  <span class="font-semibold text-amber-600 font-mono">${item.whCount.toLocaleString()}</span>
+                </div>
+                <div class="pt-2 border-t border-slate-200 flex justify-between text-slate-800 font-bold">
+                  <span>總退貨數量：</span>
+                  <span class="text-brand-600 font-mono text-sm">${item.totalQty.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="downloadSingleSupplier('${item.name}')" class="w-full bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white font-bold py-3 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 border border-brand-100 hover:border-brand-600 shadow-sm">
+              <i class="fa-solid fa-file-excel"></i>
+              下載此廠商 Excel 檔 (單檔)
+            </button>
+          </div>
+        `;
+      });
+    }
+
+    // 格式化對帳單 Excel 樣式 (統一命名為「國際條碼」)
+    function generateStyledWorksheet(rows) {
+      const wsData = rows.map(r => ({
+        "來源分類": r.來源,
+        "退貨地點": r.退貨點,
+        "國際條碼": r.國際條碼,
+        "料件名稱": r.料件名稱,
+        "商品大分類": r.主分類,
+        "品牌名稱": r.品牌,
+        "退貨數量(各店庫存)": r.退貨數量
+      }));
+
+      const totalQty = rows.reduce((acc, r) => acc + r.退貨數量, 0);
+      
+      // 合計列
+      wsData.push({
+        "來源分類": "【合計】",
+        "退貨地點": "",
+        "國際條碼": "",
+        "料件名稱": "",
+        "商品大分類": "",
+        "品牌名稱": "",
+        "退貨數量(各店庫存)": totalQty
+      });
+
+      const ws = XLSX.utils.json_to_sheet(wsData);
+
+      // 自動設定最佳欄寬
+      const wscols = [
+        { wch: 12 }, // 來源分類
+        { wch: 22 }, // 退貨地點
+        { wch: 18 }, // 國際條碼
+        { wch: 48 }, // 料件名稱
+        { wch: 14 }, // 商品大分類
+        { wch: 16 }, // 品牌名稱
+        { wch: 20 }  // 退貨數量(各店庫存)
+      ];
+      ws['!cols'] = wscols;
+
+      return ws;
+    }
+
+    // 單獨下載 Excel
+    function downloadSingleSupplier(supplierName) {
+      const rows = groupedSuppliers[supplierName];
+      if (!rows || rows.length === 0) return;
+
+      const wb = XLSX.utils.book_new();
+      const ws = generateStyledWorksheet(rows);
+
+      XLSX.utils.book_append_sheet(wb, ws, "月退明細");
+      
+      const fileName = `【月退名單】${supplierName}_2026年5月月退庫存明細表.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      showToast(`成功下載：${fileName}`);
+    }
+
+    // 一鍵批次打包 ZIP
+    async function exportAllSuppliersToZip() {
+      const zip = new JSZip();
+      const suppliers = Object.keys(groupedSuppliers);
+
+      if (suppliers.length === 0) {
+        showToast('無可匯出之廠商資料！', 'error');
+        return;
+      }
+
+      const progressContainer = document.getElementById('progress-container');
+      const progressText = document.getElementById('progress-text');
+      const progressPercent = document.getElementById('progress-percent');
+      const progressBar = document.getElementById('progress-bar');
+
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressPercent.innerText = '0%';
+
+      let index = 0;
+
+      for (const supplierName of suppliers) {
+        index++;
+        const percent = Math.round((index / suppliers.length) * 100);
+        
+        progressText.innerText = `正在打包第 ${index}/${suppliers.length} 家廠商 : ${supplierName}`;
+        progressBar.style.width = `${percent}%`;
+        progressPercent.innerText = `${percent}%`;
+
+        const rows = groupedSuppliers[supplierName];
+        const wb = XLSX.utils.book_new();
+        const ws = generateStyledWorksheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, "月退明細");
+
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        zip.file(`【月退名單】${supplierName}_2026年5月月退庫存明細表.xlsx`, excelBuffer);
+
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+
+      progressText.innerText = '正在打包壓縮中，請稍候...';
+
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        saveAs(content, "2026年5月各店月退廠商對帳明細(全).zip");
+        progressContainer.classList.add('hidden');
+        showToast(`🎉 打包完成！已匯出 ${suppliers.length} 家標準格式【月退名單】Excel 對帳單！`);
+      });
+    }
+
+    // 下載完整合併總表 Excel
+    function exportMergedExcel() {
+      if (mergedData.length === 0) return;
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(mergedData);
+      
+      const wscols = [
+        { wch: 10 }, // 來源
+        { wch: 18 }, // 國際條碼
+        { wch: 45 }, // 料件名稱
+        { wch: 12 }, // 供應商編號
+        { wch: 18 }, // 供應商簡稱
+        { wch: 12 }, // 主分類
+        { wch: 15 }, // 品牌
+        { wch: 22 }, // 退貨點
+        { wch: 12 }  // 退貨數量
+      ];
+      ws['!cols'] = wscols;
+
+      XLSX.utils.book_append_sheet(wb, ws, "合併總表");
+      XLSX.writeFile(wb, "2026_5月各店月退庫存對齊合併總表.xlsx");
+      showToast('成功匯出合併總表！');
+    }
+
+    // 模擬測試資料 (單活頁簿模式)
+    function loadDemoData() {
+      const mockStoreData = [
+        { "料件編號": "4008429015335", "料件名稱": "Vitakraft 樂貓泥 嫩雞口味15g*4入", "供應商編號": "00041000", "供應商簡稱": "聯合東方", "主分類": "零食", "品牌名稱": "VitaKraft", "門市": "001文化店", "目前庫存": 7 },
+        { "料件編號": "4008429015333", "料件名稱": "Vitakraft 樂貓泥 鮭魚口味15g*4入", "供應商編號": "00041000", "供應商簡稱": "聯合東方", "主分類": "零食", "品牌名稱": "VitaKraft", "門市": "001文化店", "目前庫存": 1 },
+        { "料件編號": "4712946280271", "料件名稱": "Cat Glory 驕傲貓 貓薄荷潔牙軟錠 原味120g", "供應商編號": "00098000", "供應商簡稱": "琦信", "主分類": "零食", "品牌名稱": "Cat Glory", "門市": "001文化店", "目前庫存": 3 },
+        { "料件編號": "4713280179645", "料件名稱": "Otoli悠多利 犬貓悠骨氣保健粉1.5g*30入", "供應商編號": "WP000879", "供應商簡稱": "育晉", "主分類": "保健品", "品牌名稱": "Otoli悠多利", "門市": "201土城明德店", "目前庫存": 4 },
+        { "料件編號": "4715560030331", "料件名稱": "喵屋 城堡喵屋", "供應商編號": "WP000311", "供應商簡稱": "三和三", "主分類": "玩具", "品牌名稱": "喵屋", "門市": "202永康民族店", "目前庫存": 1 }
+      ];
+
+      const mockWarehouseData = [
+        { "料件編號": "4712946280271", "料件名稱": "Cat Glory 驕傲貓 貓薄荷潔牙軟錠 原味120g", "供應商編號": "00098000", "供應商名稱": "琦信", "主分類": "零食", "品牌": "Cat Glory", "倉庫編號": "802R83", "倉庫名稱": "毛孩Boxful倉", "目前庫存數": 11 },
+        { "料件編號": "4713280179669", "料件名稱": "Otoli悠多利 貓貓悠腎泌保健粉1.5*30入", "供應商編號": "WP000879", "供應商名稱": "育晉", "主分類": "保健品", "品牌": "Otoli悠多利", "倉庫編號": "804R83", "倉庫名稱": "寵公線上購 大智通倉", "current_stock_num": 5 },
+        { "料件編號": "4902397841064", "料件名稱": "西莎點心 贅贅濃厚切達起司條100g", "供應商編號": "01064000", "供應商名稱": "國郡", "主分類": "零食", "品牌": "西莎", "倉庫編號": "802R83", "倉庫名稱": "毛孩Boxful倉", "目前庫存數": 5 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const wsStore = XLSX.utils.json_to_sheet(mockStoreData);
+      const wsWh = XLSX.utils.json_to_sheet(mockWarehouseData);
+
+      XLSX.utils.book_append_sheet(wb, wsStore, "門市");
+      XLSX.utils.book_append_sheet(wb, wsWh, "其他倉庫");
+
+      document.getElementById('tab-single').click();
+      handleSingleExcelUpload(wb, "2026_5月月退各店庫存數量(0507).xlsx", "single-info");
+
+      document.getElementById('single-file-name').innerHTML = `<span class="font-bold text-brand-600">2026_5月月退各店庫存數量(0507).xlsx (模擬載入)</span>`;
+      
+      showToast('成功載入範例模擬資料！請點選「合併並進行智慧分析」！', 'info');
+    }
+  </script>
+</body>
+</html>
